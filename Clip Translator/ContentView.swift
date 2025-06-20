@@ -6,14 +6,22 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
+    @StateObject private var translator = ClipboardTranslator()
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        VStack(spacing: 12) {
+            Text("Clipboard Translation")
+                .font(.headline)
+            Text(translator.translatedText)
+                .multilineTextAlignment(.center)
+                .padding()
+            Button("Refresh") {
+                translator.refresh()
+            }
+            .buttonStyle(.borderedProminent)
         }
         .padding()
     }

@@ -1,25 +1,56 @@
 import Foundation
 import UIKit
 
-/// Simple offline translator using a small dictionary.
-struct Translator {
-    /// Dictionary containing example translations from English to Japanese.
-    private static let dictionary: [String: String] = [
-        "hello": "こんにちは",
-        "world": "世界",
-        "good": "良い",
-        "morning": "朝",
-        "cat": "猫",
-        "dog": "犬"
-    ]
+/// Result returned by the LibreTranslate API.
+private struct TranslateResult: Decodable {
+    let translatedText: String
+}
 
-    /// Translates a phrase. Returns the original text if no translation exists.
-    static func translate(_ text: String) -> String {
-        let lowercased = text.lowercased()
-        if let translated = dictionary[lowercased] {
-            return translated
+/// Translator using the open source LibreTranslate API.
+struct Translator {
+    /// Performs an asynchronous translation request.
+    static func translate(_ text: String,
+                          from source: String = "auto",
+                          to target: String = Locale.current.languageCode ?? "en",
+                          completion: @escaping (String?) -> Void) {
+        guard let url = URL(string: "https://libretranslate.de/translate") else {
+            completion(nil)
+            return
         }
-        return text
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let body: [String: String] = [
+            "q": text,
+            "source": source,
+            "target": target,
+            "format": "text"
+        ]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        URLSession.shared.dataTask(with: request) { data, _, _ in
+            guard let data = data,
+                  let result = try? JSONDecoder().decode(TranslateResult.self, from: data) else {
+                completion(nil)
+                return
+            }
+            completion(result.translatedText)
+        }.resume()
+    }
+
+    /// Synchronous helper used by widgets to fetch a translation.
+    static func translateSync(_ text: String,
+                              from source: String = "auto",
+                              to target: String = Locale.current.languageCode ?? "en") -> String? {
+        let semaphore = DispatchSemaphore(value: 0)
+        var output: String?
+        translate(text, from: source, to: target) { result in
+            output = result
+            semaphore.signal()
+        }
+        semaphore.wait()
+        return output
     }
 }
 
@@ -34,7 +65,12 @@ final class ClipboardTranslator: ObservableObject {
     /// Reads the current clipboard string and updates ``translatedText``.
     func refresh() {
         if let value = UIPasteboard.general.string, !value.isEmpty {
-            translatedText = Translator.translate(value)
+            translatedText = "Translating..."
+            Translator.translate(value) { [weak self] result in
+                DispatchQueue.main.async {
+                    self?.translatedText = result ?? "(error)"
+                }
+            }
         } else {
             translatedText = "(clipboard empty)"
         }

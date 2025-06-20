@@ -13,13 +13,16 @@ struct ClipboardProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ClipboardEntry) -> Void) {
-        let entry = ClipboardEntry(date: Date(), translatedText: ClipboardTranslator().translatedText)
+        let text = UIPasteboard.general.string ?? ""
+        let translated = Translator.translateSync(text) ?? ""
+        let entry = ClipboardEntry(date: Date(), translatedText: translated)
         completion(entry)
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ClipboardEntry>) -> Void) {
-        let translator = ClipboardTranslator()
-        let entry = ClipboardEntry(date: Date(), translatedText: translator.translatedText)
+        let text = UIPasteboard.general.string ?? ""
+        let translated = Translator.translateSync(text) ?? ""
+        let entry = ClipboardEntry(date: Date(), translatedText: translated)
         let timeline = Timeline(entries: [entry], policy: .atEnd)
         completion(timeline)
     }
